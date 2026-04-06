@@ -227,3 +227,192 @@ type AuditEvent struct {
 	Details      map[string]interface{} `json:"details"`
 	Timestamp    time.Time              `json:"timestamp"`
 }
+
+// ============================================================================
+// Receipt Types (Ticket 81: Receipt Canonical Event Schema v2)
+// ============================================================================
+
+// ReceiptStatus represents the lifecycle status of a receipt event.
+type ReceiptStatus string
+
+const (
+	ReceiptStatusActive     ReceiptStatus = "active"
+	ReceiptStatusRevoked    ReceiptStatus = "revoked"
+	ReceiptStatusSuperseded ReceiptStatus = "superseded"
+)
+
+// RetentionPolicy controls how long receipt data is retained.
+type RetentionPolicy string
+
+const (
+	RetentionPolicyStandard RetentionPolicy = "standard"
+	RetentionPolicyExtended RetentionPolicy = "extended"
+	RetentionPolicyPermanent RetentionPolicy = "permanent"
+)
+
+// ReceiptTypeStatus represents the lifecycle of a receipt type definition.
+type ReceiptTypeStatus string
+
+const (
+	ReceiptTypeStatusActive     ReceiptTypeStatus = "active"
+	ReceiptTypeStatusDeprecated ReceiptTypeStatus = "deprecated"
+	ReceiptTypeStatusArchived   ReceiptTypeStatus = "archived"
+)
+
+// ReceiptType describes a versioned receipt family registered in the platform.
+type ReceiptType struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	DisplayName string            `json:"display_name"`
+	Version     string            `json:"version"`
+	Status      ReceiptTypeStatus `json:"status"`
+	Schema      map[string]interface{} `json:"schema"`
+	Description string            `json:"description,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+}
+
+// ReceiptSignature contains the cryptographic signature for a receipt event.
+type ReceiptSignature struct {
+	Alg   string `json:"alg"`
+	Kid   string `json:"kid"`
+	Value string `json:"value"`
+}
+
+// ReceiptLog contains transparency log anchoring details for a receipt.
+type ReceiptLog struct {
+	LogID     string `json:"log_id"`
+	LeafIndex int64  `json:"leaf_index"`
+	LeafHash  string `json:"leaf_hash"`
+}
+
+// ReceiptEvent represents a minted, signed, and log-anchored receipt.
+type ReceiptEvent struct {
+	ReceiptID      string           `json:"receipt_id"`
+	ReceiptType    string           `json:"receipt_type"`
+	ReceiptVersion string           `json:"receipt_version"`
+	Status         ReceiptStatus    `json:"status"`
+	IssuedAt       string           `json:"issued_at"`
+	TenantID       string           `json:"tenant_id"`
+	IssuerID       string           `json:"issuer_id"`
+	PayloadHash    string           `json:"payload_hash"`
+	Signature      ReceiptSignature `json:"signature"`
+	Log            ReceiptLog       `json:"log"`
+}
+
+// MintReceiptRequest is the request to create a new receipt event.
+type MintReceiptRequest struct {
+	IssuerID        string                 `json:"issuer_id"`
+	KID             string                 `json:"kid"`
+	Alg             string                 `json:"alg"`
+	ReceiptType     string                 `json:"receipt_type"`
+	ReceiptVersion  string                 `json:"receipt_version,omitempty"`
+	Subject         string                 `json:"subject"`
+	Payload         map[string]interface{} `json:"payload"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+	RetentionPolicy RetentionPolicy        `json:"retention_policy,omitempty"`
+}
+
+// RevokeReceiptRequest is the optional body for revoking a receipt.
+type RevokeReceiptRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// ListReceiptsFilter contains optional query filters for listing receipts.
+type ListReceiptsFilter struct {
+	ReceiptType string
+	IssuerID    string
+	Status      ReceiptStatus
+	Limit       int
+	Offset      int
+}
+
+// ListReceiptsResponse contains a paginated list of receipt events.
+type ListReceiptsResponse struct {
+	Items  []ReceiptEvent `json:"items"`
+	Total  int            `json:"total"`
+	Limit  int            `json:"limit"`
+	Offset int            `json:"offset"`
+}
+
+// ListReceiptTypesResponse contains the available receipt type families.
+type ListReceiptTypesResponse struct {
+	Items []ReceiptType `json:"items"`
+	Total int           `json:"total"`
+}
+
+// CreateReceiptTypeRequest is the request to create a tenant-custom receipt type.
+type CreateReceiptTypeRequest struct {
+	Name        string                 `json:"name"`
+	DisplayName string                 `json:"display_name"`
+	Version     string                 `json:"version,omitempty"`
+	Schema      map[string]interface{} `json:"schema"`
+	Description string                 `json:"description,omitempty"`
+}
+
+// UpdateReceiptTypeRequest is used to deprecate or archive a receipt type.
+type UpdateReceiptTypeRequest struct {
+	Status string `json:"status"` // deprecated | archived
+}
+
+// SigningPolicy governs which issuers and algorithms may mint a receipt type.
+type SigningPolicy struct {
+	ReceiptType       string   `json:"receipt_type"`
+	Version           string   `json:"version"`
+	PolicyConfigured  bool     `json:"policy_configured"`
+	AllowAnyIssuer    bool     `json:"allow_any_issuer"`
+	AllowedIssuerIDs  []string `json:"allowed_issuer_ids"`
+	MinTrustTier      string   `json:"min_trust_tier"`
+	AllowedAlgs       []string `json:"allowed_algs"`
+	UpdatedAt         string   `json:"updated_at,omitempty"`
+}
+
+// SetSigningPolicyRequest sets the signing policy for a receipt type.
+type SetSigningPolicyRequest struct {
+	AllowAnyIssuer   bool     `json:"allow_any_issuer"`
+	AllowedIssuerIDs []string `json:"allowed_issuer_ids,omitempty"`
+	MinTrustTier     string   `json:"min_trust_tier,omitempty"`
+	AllowedAlgs      []string `json:"allowed_algs,omitempty"`
+}
+
+// ReceiptVerifyResponse is the response from receipt verification.
+type ReceiptVerifyResponse struct {
+	Verdict     string `json:"verdict"`
+	ReceiptID   string `json:"receipt_id"`
+	ReceiptType string `json:"receipt_type"`
+	IssuedAt    string `json:"issued_at,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+}
+
+// SearchReceiptsQuery supports full-text + faceted search.
+type SearchReceiptsQuery struct {
+	Query       string `json:"q,omitempty"`
+	ReceiptType string `json:"receipt_type,omitempty"`
+	Status      string `json:"status,omitempty"`
+	IssuerID    string `json:"issuer_id,omitempty"`
+	FromDate    string `json:"from_date,omitempty"`
+	ToDate      string `json:"to_date,omitempty"`
+	IndexKey    string `json:"index_key,omitempty"`
+	IndexValue  string `json:"index_value,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	Offset      int    `json:"offset,omitempty"`
+}
+
+// ReceiptExport represents an async bulk export job.
+type ReceiptExport struct {
+	ExportID     string  `json:"export_id"`
+	TenantID     string  `json:"tenant_id"`
+	Status       string  `json:"status"`
+	Format       string  `json:"format"`
+	CreatedAt    string  `json:"created_at"`
+	CompletedAt  string  `json:"completed_at,omitempty"`
+	RecordCount  int64   `json:"record_count,omitempty"`
+	DownloadURL  string  `json:"download_url,omitempty"`
+	ExpiresAt    string  `json:"expires_at,omitempty"`
+	ErrorMessage string  `json:"error_message,omitempty"`
+}
+
+// CreateExportRequest is the request to queue a receipt export.
+type CreateExportRequest struct {
+	Format  string                 `json:"format"`
+	Filters map[string]interface{} `json:"filters,omitempty"`
+}

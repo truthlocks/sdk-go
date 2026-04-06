@@ -157,3 +157,193 @@ func (s *AuditService) QueryEvents(ctx context.Context, params map[string]string
 	}
 	return events, nil
 }
+
+// ============================================================================
+// ReceiptsService — Ticket 81: Receipt Canonical Event Schema v2
+// ============================================================================
+
+// ReceiptsService provides receipt lifecycle operations.
+type ReceiptsService struct {
+	client *Client
+}
+
+// Mint creates a new cryptographically signed and transparency-log-anchored receipt.
+func (s *ReceiptsService) Mint(ctx context.Context, req *MintReceiptRequest) (*ReceiptEvent, error) {
+	var receipt ReceiptEvent
+	if err := s.client.request(ctx, "POST", "/v1/receipts", req, &receipt); err != nil {
+		return nil, err
+	}
+	return &receipt, nil
+}
+
+// Get retrieves a receipt event by ID.
+func (s *ReceiptsService) Get(ctx context.Context, id string) (*ReceiptEvent, error) {
+	var receipt ReceiptEvent
+	if err := s.client.request(ctx, "GET", "/v1/receipts/"+id, nil, &receipt); err != nil {
+		return nil, err
+	}
+	return &receipt, nil
+}
+
+// List retrieves receipt events with optional filters.
+func (s *ReceiptsService) List(ctx context.Context, f *ListReceiptsFilter) (*ListReceiptsResponse, error) {
+	path := "/v1/receipts"
+	sep := "?"
+	if f != nil {
+		if f.ReceiptType != "" {
+			path += sep + "receipt_type=" + f.ReceiptType
+			sep = "&"
+		}
+		if f.IssuerID != "" {
+			path += sep + "issuer_id=" + f.IssuerID
+			sep = "&"
+		}
+		if f.Status != "" {
+			path += sep + "status=" + string(f.Status)
+			sep = "&"
+		}
+		if f.Limit > 0 {
+			path += sep + "limit=" + itoa(f.Limit)
+			sep = "&"
+		}
+		if f.Offset > 0 {
+			path += sep + "offset=" + itoa(f.Offset)
+		}
+	}
+
+	var resp ListReceiptsResponse
+	if err := s.client.request(ctx, "GET", path, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Revoke revokes a receipt event and records a RECEIPT_REVOKE entry in the transparency log.
+func (s *ReceiptsService) Revoke(ctx context.Context, id string, req *RevokeReceiptRequest) (*ReceiptEvent, error) {
+	var receipt ReceiptEvent
+	if req == nil {
+		req = &RevokeReceiptRequest{}
+	}
+	if err := s.client.request(ctx, "POST", "/v1/receipts/"+id+"/revoke", req, &receipt); err != nil {
+		return nil, err
+	}
+	return &receipt, nil
+}
+
+// ListTypes returns all active receipt type families available to the tenant.
+func (s *ReceiptsService) ListTypes(ctx context.Context) (*ListReceiptTypesResponse, error) {
+	var resp ListReceiptTypesResponse
+	if err := s.client.request(ctx, "GET", "/v1/receipt-types", nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// GetType retrieves a specific receipt type by name.
+// To pin a version use: "payment_receipt@1.0.0"
+func (s *ReceiptsService) GetType(ctx context.Context, name string) (*ReceiptType, error) {
+	var rt ReceiptType
+	if err := s.client.request(ctx, "GET", "/v1/receipt-types/"+name, nil, &rt); err != nil {
+		return nil, err
+	}
+	return &rt, nil
+}
+
+// CreateType creates a tenant-custom receipt type with a JSON Schema.
+func (s *ReceiptsService) CreateType(ctx context.Context, req *CreateReceiptTypeRequest) (*ReceiptType, error) {
+	var rt ReceiptType
+	if err := s.client.request(ctx, "POST", "/v1/receipt-types", req, &rt); err != nil {
+		return nil, err
+	}
+	return &rt, nil
+}
+
+// UpdateType deprecates or archives a tenant-custom receipt type.
+func (s *ReceiptsService) UpdateType(ctx context.Context, name string, req *UpdateReceiptTypeRequest) error {
+	return s.client.request(ctx, "PATCH", "/v1/receipt-types/"+name, req, nil)
+}
+
+// GetSigningPolicy returns the signing policy for a receipt type.
+func (s *ReceiptsService) GetSigningPolicy(ctx context.Context, name string) (*SigningPolicy, error) {
+	var sp SigningPolicy
+	if err := s.client.request(ctx, "GET", "/v1/receipt-types/"+name+"/signing-policy", nil, &sp); err != nil {
+		return nil, err
+	}
+	return &sp, nil
+}
+
+// SetSigningPolicy sets the signing policy for a receipt type.
+func (s *ReceiptsService) SetSigningPolicy(ctx context.Context, name string, req *SetSigningPolicyRequest) (*SigningPolicy, error) {
+	var sp SigningPolicy
+	if err := s.client.request(ctx, "POST", "/v1/receipt-types/"+name+"/signing-policy", req, &sp); err != nil {
+		return nil, err
+	}
+	return &sp, nil
+}
+
+// GetProofBundle retrieves the proof bundle for a receipt.
+func (s *ReceiptsService) GetProofBundle(ctx context.Context, id string) (map[string]interface{}, error) {
+	var bundle map[string]interface{}
+	if err := s.client.request(ctx, "GET", "/v1/receipts/"+id+"/proof-bundle", nil, &bundle); err != nil {
+		return nil, err
+	}
+	return bundle, nil
+}
+
+// Verify verifies a receipt by ID.
+func (s *ReceiptsService) Verify(ctx context.Context, receiptID string) (*ReceiptVerifyResponse, error) {
+	var resp ReceiptVerifyResponse
+	body := map[string]string{"receipt_id": receiptID}
+	if err := s.client.request(ctx, "POST", "/v1/receipts/verify", body, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Search searches receipt events with full-text and faceted filtering.
+func (s *ReceiptsService) Search(ctx context.Context, q *SearchReceiptsQuery) (*ListReceiptsResponse, error) {
+	var resp ListReceiptsResponse
+	if err := s.client.request(ctx, "POST", "/v1/receipts/search", q, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+// Export queues a bulk export of receipts.
+func (s *ReceiptsService) Export(ctx context.Context, req *CreateExportRequest) (*ReceiptExport, error) {
+	var exp ReceiptExport
+	if err := s.client.request(ctx, "POST", "/v1/receipts/export", req, &exp); err != nil {
+		return nil, err
+	}
+	return &exp, nil
+}
+
+// GetExport retrieves the status and download URL of an export job.
+func (s *ReceiptsService) GetExport(ctx context.Context, exportID string) (*ReceiptExport, error) {
+	var exp ReceiptExport
+	if err := s.client.request(ctx, "GET", "/v1/receipts/exports/"+exportID, nil, &exp); err != nil {
+		return nil, err
+	}
+	return &exp, nil
+}
+
+// Redact removes PII from a receipt payload while preserving the cryptographic proof.
+func (s *ReceiptsService) Redact(ctx context.Context, id string) (map[string]interface{}, error) {
+	var resp map[string]interface{}
+	if err := s.client.request(ctx, "POST", "/v1/receipts/"+id+"/redact", map[string]string{}, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	buf := make([]byte, 0, 10)
+	for n > 0 {
+		buf = append([]byte{byte('0' + n%10)}, buf...)
+		n /= 10
+	}
+	return string(buf)
+}

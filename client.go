@@ -61,6 +61,8 @@ type Client struct {
 	Verify *VerifyService
 	// Audit provides audit log operations.
 	Audit *AuditService
+	// Receipts provides receipt lifecycle operations (Ticket 81).
+	Receipts *ReceiptsService
 }
 
 // NewClient creates a new Truthlock client with the given configuration.
@@ -79,6 +81,7 @@ func NewClient(config Config) *Client {
 	c.Attestations = &AttestationsService{client: c}
 	c.Verify = &VerifyService{client: c}
 	c.Audit = &AuditService{client: c}
+	c.Receipts = &ReceiptsService{client: c}
 
 	return c
 }
