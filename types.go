@@ -245,8 +245,8 @@ const (
 type RetentionPolicy string
 
 const (
-	RetentionPolicyStandard RetentionPolicy = "standard"
-	RetentionPolicyExtended RetentionPolicy = "extended"
+	RetentionPolicyStandard  RetentionPolicy = "standard"
+	RetentionPolicyExtended  RetentionPolicy = "extended"
 	RetentionPolicyPermanent RetentionPolicy = "permanent"
 )
 
@@ -261,14 +261,14 @@ const (
 
 // ReceiptType describes a versioned receipt family registered in the platform.
 type ReceiptType struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	DisplayName string            `json:"display_name"`
-	Version     string            `json:"version"`
-	Status      ReceiptTypeStatus `json:"status"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	DisplayName string                 `json:"display_name"`
+	Version     string                 `json:"version"`
+	Status      ReceiptTypeStatus      `json:"status"`
 	Schema      map[string]interface{} `json:"schema"`
-	Description string            `json:"description,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
+	Description string                 `json:"description,omitempty"`
+	CreatedAt   time.Time              `json:"created_at"`
 }
 
 // ReceiptSignature contains the cryptographic signature for a receipt event.
@@ -356,14 +356,14 @@ type UpdateReceiptTypeRequest struct {
 
 // SigningPolicy governs which issuers and algorithms may mint a receipt type.
 type SigningPolicy struct {
-	ReceiptType       string   `json:"receipt_type"`
-	Version           string   `json:"version"`
-	PolicyConfigured  bool     `json:"policy_configured"`
-	AllowAnyIssuer    bool     `json:"allow_any_issuer"`
-	AllowedIssuerIDs  []string `json:"allowed_issuer_ids"`
-	MinTrustTier      string   `json:"min_trust_tier"`
-	AllowedAlgs       []string `json:"allowed_algs"`
-	UpdatedAt         string   `json:"updated_at,omitempty"`
+	ReceiptType      string   `json:"receipt_type"`
+	Version          string   `json:"version"`
+	PolicyConfigured bool     `json:"policy_configured"`
+	AllowAnyIssuer   bool     `json:"allow_any_issuer"`
+	AllowedIssuerIDs []string `json:"allowed_issuer_ids"`
+	MinTrustTier     string   `json:"min_trust_tier"`
+	AllowedAlgs      []string `json:"allowed_algs"`
+	UpdatedAt        string   `json:"updated_at,omitempty"`
 }
 
 // SetSigningPolicyRequest sets the signing policy for a receipt type.
@@ -399,16 +399,16 @@ type SearchReceiptsQuery struct {
 
 // ReceiptExport represents an async bulk export job.
 type ReceiptExport struct {
-	ExportID     string  `json:"export_id"`
-	TenantID     string  `json:"tenant_id"`
-	Status       string  `json:"status"`
-	Format       string  `json:"format"`
-	CreatedAt    string  `json:"created_at"`
-	CompletedAt  string  `json:"completed_at,omitempty"`
-	RecordCount  int64   `json:"record_count,omitempty"`
-	DownloadURL  string  `json:"download_url,omitempty"`
-	ExpiresAt    string  `json:"expires_at,omitempty"`
-	ErrorMessage string  `json:"error_message,omitempty"`
+	ExportID     string `json:"export_id"`
+	TenantID     string `json:"tenant_id"`
+	Status       string `json:"status"`
+	Format       string `json:"format"`
+	CreatedAt    string `json:"created_at"`
+	CompletedAt  string `json:"completed_at,omitempty"`
+	RecordCount  int64  `json:"record_count,omitempty"`
+	DownloadURL  string `json:"download_url,omitempty"`
+	ExpiresAt    string `json:"expires_at,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // CreateExportRequest is the request to queue a receipt export.
