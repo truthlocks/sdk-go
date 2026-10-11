@@ -2,6 +2,8 @@ package truthlock
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 )
 
 // IssuersService provides issuer management operations.
@@ -21,7 +23,7 @@ func (s *IssuersService) Create(ctx context.Context, req *CreateIssuerRequest) (
 // Get retrieves an issuer by ID.
 func (s *IssuersService) Get(ctx context.Context, id string) (*Issuer, error) {
 	var issuer Issuer
-	if err := s.client.request(ctx, "GET", "/v1/issuers/"+id, nil, &issuer); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/issuers/"+url.PathEscape(id), nil, &issuer); err != nil {
 		return nil, err
 	}
 	return &issuer, nil
@@ -36,30 +38,31 @@ func (s *IssuersService) List(ctx context.Context) ([]*Issuer, error) {
 	return issuers, nil
 }
 
-// Trust approves and trusts an issuer.
+// Trust marks the workspace issuer trusted and then reads its complete representation.
 func (s *IssuersService) Trust(ctx context.Context, id string) (*Issuer, error) {
-	var issuer Issuer
-	if err := s.client.request(ctx, "POST", "/v1/issuers/"+id+"/trust", nil, &issuer); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/issuers/"+url.PathEscape(id)+"/trust", nil, nil); err != nil {
 		return nil, err
 	}
-	return &issuer, nil
+	return s.Get(ctx, id)
 }
 
-// Suspend suspends an issuer.
+// Suspend requires a platform-staff bearer identity and a reason of 10–2000 characters.
 func (s *IssuersService) Suspend(ctx context.Context, id string, reason string) (*Issuer, error) {
-	var issuer Issuer
-	body := map[string]string{"reason": reason}
-	if err := s.client.request(ctx, "POST", "/v1/issuers/"+id+"/suspend", body, &issuer); err != nil {
-		return nil, err
-	}
-	return &issuer, nil
+	return s.decide(ctx, id, "suspend", reason)
 }
 
-// Revoke revokes an issuer.
+// Revoke requires a platform-staff bearer identity and a reason of 10–2000 characters.
 func (s *IssuersService) Revoke(ctx context.Context, id string, reason string) (*Issuer, error) {
+	return s.decide(ctx, id, "revoke", reason)
+}
+
+func (s *IssuersService) decide(ctx context.Context, id, action, reason string) (*Issuer, error) {
+	path := "/v1/platform/issuers/" + url.PathEscape(id)
+	if err := s.client.request(ctx, "POST", path+"/"+action, map[string]string{"reason": reason}, nil); err != nil {
+		return nil, err
+	}
 	var issuer Issuer
-	body := map[string]string{"reason": reason}
-	if err := s.client.request(ctx, "POST", "/v1/issuers/"+id+"/revoke", body, &issuer); err != nil {
+	if err := s.client.request(ctx, "GET", path, nil, &issuer); err != nil {
 		return nil, err
 	}
 	return &issuer, nil
@@ -73,7 +76,7 @@ type KeysService struct {
 // Register registers a new signing key for an issuer.
 func (s *KeysService) Register(ctx context.Context, issuerID string, req *RegisterKeyRequest) (*IssuerKey, error) {
 	var key IssuerKey
-	if err := s.client.request(ctx, "POST", "/v1/issuers/"+issuerID+"/keys", req, &key); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/issuers/"+url.PathEscape(issuerID)+"/keys", req, &key); err != nil {
 		return nil, err
 	}
 	return &key, nil
@@ -82,7 +85,7 @@ func (s *KeysService) Register(ctx context.Context, issuerID string, req *Regist
 // List retrieves all keys for an issuer.
 func (s *KeysService) List(ctx context.Context, issuerID string) ([]*IssuerKey, error) {
 	var keys []*IssuerKey
-	if err := s.client.request(ctx, "GET", "/v1/issuers/"+issuerID+"/keys", nil, &keys); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/issuers/"+url.PathEscape(issuerID)+"/keys", nil, &keys); err != nil {
 		return nil, err
 	}
 	return keys, nil
@@ -96,7 +99,7 @@ type AttestationsService struct {
 // Mint creates a new attestation.
 func (s *AttestationsService) Mint(ctx context.Context, req *MintRequest) (*Attestation, error) {
 	var attestation Attestation
-	if err := s.client.request(ctx, "POST", "/v1/attestations", req, &attestation); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/attestations/mint", req, &attestation); err != nil {
 		return nil, err
 	}
 	return &attestation, nil
@@ -105,7 +108,7 @@ func (s *AttestationsService) Mint(ctx context.Context, req *MintRequest) (*Atte
 // Get retrieves an attestation by ID.
 func (s *AttestationsService) Get(ctx context.Context, id string) (*Attestation, error) {
 	var attestation Attestation
-	if err := s.client.request(ctx, "GET", "/v1/attestations/"+id, nil, &attestation); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/attestations/"+url.PathEscape(id), nil, &attestation); err != nil {
 		return nil, err
 	}
 	return &attestation, nil
@@ -114,7 +117,7 @@ func (s *AttestationsService) Get(ctx context.Context, id string) (*Attestation,
 // Revoke revokes an attestation.
 func (s *AttestationsService) Revoke(ctx context.Context, id string, req *RevokeRequest) (*Attestation, error) {
 	var attestation Attestation
-	if err := s.client.request(ctx, "POST", "/v1/attestations/"+id+"/revoke", req, &attestation); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/attestations/"+url.PathEscape(id)+"/revoke", req, &attestation); err != nil {
 		return nil, err
 	}
 	return &attestation, nil
@@ -123,7 +126,7 @@ func (s *AttestationsService) Revoke(ctx context.Context, id string, req *Revoke
 // GetProofBundle retrieves the proof bundle for an attestation.
 func (s *AttestationsService) GetProofBundle(ctx context.Context, id string) (*ProofBundle, error) {
 	var bundle ProofBundle
-	if err := s.client.request(ctx, "GET", "/v1/attestations/"+id+"/proof-bundle", nil, &bundle); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/attestations/"+url.PathEscape(id)+"/proof-bundle", nil, &bundle); err != nil {
 		return nil, err
 	}
 	return &bundle, nil
@@ -140,6 +143,10 @@ func (s *VerifyService) VerifyOnline(ctx context.Context, req *VerifyRequest) (*
 	if err := s.client.request(ctx, "POST", "/v1/verify", req, &resp); err != nil {
 		return nil, err
 	}
+	if resp.Verdict == "" {
+		return nil, fmt.Errorf("truthlocks: verification response is missing verdict")
+	}
+	resp.Valid = resp.Verdict == VerdictValid
 	return &resp, nil
 }
 
@@ -151,15 +158,18 @@ type AuditService struct {
 // QueryEvents queries audit events with optional filters.
 func (s *AuditService) QueryEvents(ctx context.Context, params map[string]string) ([]*AuditEvent, error) {
 	var events []*AuditEvent
-	// Note: In full implementation, params would be added as query string
-	if err := s.client.request(ctx, "GET", "/v1/audit/events", nil, &events); err != nil {
+	query := url.Values{}
+	for key, value := range params {
+		query.Set(key, value)
+	}
+	if err := s.client.request(ctx, "GET", "/v1/audit/events?"+query.Encode(), nil, &events); err != nil {
 		return nil, err
 	}
 	return events, nil
 }
 
 // ============================================================================
-// ReceiptsService — Ticket 81: Receipt Canonical Event Schema v2
+// ReceiptsService â€” Ticket 81: Receipt Canonical Event Schema v2
 // ============================================================================
 
 // ReceiptsService provides receipt lifecycle operations.
@@ -179,7 +189,7 @@ func (s *ReceiptsService) Mint(ctx context.Context, req *MintReceiptRequest) (*R
 // Get retrieves a receipt event by ID.
 func (s *ReceiptsService) Get(ctx context.Context, id string) (*ReceiptEvent, error) {
 	var receipt ReceiptEvent
-	if err := s.client.request(ctx, "GET", "/v1/receipts/"+id, nil, &receipt); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/receipts/"+url.PathEscape(id), nil, &receipt); err != nil {
 		return nil, err
 	}
 	return &receipt, nil
@@ -191,15 +201,15 @@ func (s *ReceiptsService) List(ctx context.Context, f *ListReceiptsFilter) (*Lis
 	sep := "?"
 	if f != nil {
 		if f.ReceiptType != "" {
-			path += sep + "receipt_type=" + f.ReceiptType
+			path += sep + "receipt_type=" + url.QueryEscape(f.ReceiptType)
 			sep = "&"
 		}
 		if f.IssuerID != "" {
-			path += sep + "issuer_id=" + f.IssuerID
+			path += sep + "issuer_id=" + url.QueryEscape(f.IssuerID)
 			sep = "&"
 		}
 		if f.Status != "" {
-			path += sep + "status=" + string(f.Status)
+			path += sep + "status=" + url.QueryEscape(string(f.Status))
 			sep = "&"
 		}
 		if f.Limit > 0 {
@@ -224,7 +234,7 @@ func (s *ReceiptsService) Revoke(ctx context.Context, id string, req *RevokeRece
 	if req == nil {
 		req = &RevokeReceiptRequest{}
 	}
-	if err := s.client.request(ctx, "POST", "/v1/receipts/"+id+"/revoke", req, &receipt); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/receipts/"+url.PathEscape(id)+"/revoke", req, &receipt); err != nil {
 		return nil, err
 	}
 	return &receipt, nil
@@ -243,7 +253,7 @@ func (s *ReceiptsService) ListTypes(ctx context.Context) (*ListReceiptTypesRespo
 // To pin a version use: "payment_receipt@1.0.0"
 func (s *ReceiptsService) GetType(ctx context.Context, name string) (*ReceiptType, error) {
 	var rt ReceiptType
-	if err := s.client.request(ctx, "GET", "/v1/receipt-types/"+name, nil, &rt); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/receipt-types/"+url.PathEscape(name), nil, &rt); err != nil {
 		return nil, err
 	}
 	return &rt, nil
@@ -260,13 +270,13 @@ func (s *ReceiptsService) CreateType(ctx context.Context, req *CreateReceiptType
 
 // UpdateType deprecates or archives a tenant-custom receipt type.
 func (s *ReceiptsService) UpdateType(ctx context.Context, name string, req *UpdateReceiptTypeRequest) error {
-	return s.client.request(ctx, "PATCH", "/v1/receipt-types/"+name, req, nil)
+	return s.client.request(ctx, "PATCH", "/v1/receipt-types/"+url.PathEscape(name), req, nil)
 }
 
 // GetSigningPolicy returns the signing policy for a receipt type.
 func (s *ReceiptsService) GetSigningPolicy(ctx context.Context, name string) (*SigningPolicy, error) {
 	var sp SigningPolicy
-	if err := s.client.request(ctx, "GET", "/v1/receipt-types/"+name+"/signing-policy", nil, &sp); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/receipt-types/"+url.PathEscape(name)+"/signing-policy", nil, &sp); err != nil {
 		return nil, err
 	}
 	return &sp, nil
@@ -275,7 +285,7 @@ func (s *ReceiptsService) GetSigningPolicy(ctx context.Context, name string) (*S
 // SetSigningPolicy sets the signing policy for a receipt type.
 func (s *ReceiptsService) SetSigningPolicy(ctx context.Context, name string, req *SetSigningPolicyRequest) (*SigningPolicy, error) {
 	var sp SigningPolicy
-	if err := s.client.request(ctx, "POST", "/v1/receipt-types/"+name+"/signing-policy", req, &sp); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/receipt-types/"+url.PathEscape(name)+"/signing-policy", req, &sp); err != nil {
 		return nil, err
 	}
 	return &sp, nil
@@ -284,7 +294,7 @@ func (s *ReceiptsService) SetSigningPolicy(ctx context.Context, name string, req
 // GetProofBundle retrieves the proof bundle for a receipt.
 func (s *ReceiptsService) GetProofBundle(ctx context.Context, id string) (map[string]interface{}, error) {
 	var bundle map[string]interface{}
-	if err := s.client.request(ctx, "GET", "/v1/receipts/"+id+"/proof-bundle", nil, &bundle); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/receipts/"+url.PathEscape(id)+"/proof-bundle", nil, &bundle); err != nil {
 		return nil, err
 	}
 	return bundle, nil
@@ -321,7 +331,7 @@ func (s *ReceiptsService) Export(ctx context.Context, req *CreateExportRequest) 
 // GetExport retrieves the status and download URL of an export job.
 func (s *ReceiptsService) GetExport(ctx context.Context, exportID string) (*ReceiptExport, error) {
 	var exp ReceiptExport
-	if err := s.client.request(ctx, "GET", "/v1/receipts/exports/"+exportID, nil, &exp); err != nil {
+	if err := s.client.request(ctx, "GET", "/v1/receipts/exports/"+url.PathEscape(exportID), nil, &exp); err != nil {
 		return nil, err
 	}
 	return &exp, nil
@@ -330,7 +340,7 @@ func (s *ReceiptsService) GetExport(ctx context.Context, exportID string) (*Rece
 // Redact removes PII from a receipt payload while preserving the cryptographic proof.
 func (s *ReceiptsService) Redact(ctx context.Context, id string) (map[string]interface{}, error) {
 	var resp map[string]interface{}
-	if err := s.client.request(ctx, "POST", "/v1/receipts/"+id+"/redact", map[string]string{}, &resp); err != nil {
+	if err := s.client.request(ctx, "POST", "/v1/receipts/"+url.PathEscape(id)+"/redact", map[string]string{}, &resp); err != nil {
 		return nil, err
 	}
 	return resp, nil

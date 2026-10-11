@@ -1,6 +1,9 @@
 package truthlock
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrorCode represents stable error codes returned by the API.
 type ErrorCode string
@@ -21,6 +24,25 @@ const (
 	ErrKeyCompromised   ErrorCode = "KEY_COMPROMISED"
 	ErrPolicyViolation  ErrorCode = "POLICY_VIOLATION"
 )
+
+// ErrUpgradeRequired is returned when the developer tier limit has been reached.
+var ErrUpgradeRequired = errors.New("developer tier limit reached")
+
+// UpgradeRequiredError wraps ErrUpgradeRequired with an upgrade URL.
+type UpgradeRequiredError struct {
+	// UpgradeURL is the URL where the developer can upgrade their plan.
+	UpgradeURL string
+}
+
+// Error implements the error interface.
+func (e *UpgradeRequiredError) Error() string {
+	return fmt.Sprintf("developer tier limit reached — upgrade at %s", e.UpgradeURL)
+}
+
+// Unwrap returns ErrUpgradeRequired so callers can use errors.Is.
+func (e *UpgradeRequiredError) Unwrap() error {
+	return ErrUpgradeRequired
+}
 
 // TruthlockError represents an error from the Truthlock API.
 type TruthlockError struct {

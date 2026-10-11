@@ -1,202 +1,91 @@
-<p align="center">
-  <a href="https://truthlocks.com">
-    <img src="https://www.truthlocks.com/logo/logo-color-1.png" alt="Truthlocks" width="200" />
-  </a>
-</p>
+# Truthlocks Go SDK
 
-<h1 align="center">Truthlock Go SDK</h1>
+Authenticated Go client for the Truthlocks API. Requires Go 1.22 or later.
 
-<p align="center">
-  <strong>Official Go SDK for the Truthlocks Platform</strong>
-</p>
+## Install
 
-<p align="center">
-  <a href="https://pkg.go.dev/github.com/truthlocks/sdk-go"><img src="https://pkg.go.dev/badge/github.com/truthlocks/sdk-go.svg" alt="Go Reference" /></a>
-  <a href="https://goreportcard.com/report/github.com/truthlocks/sdk-go"><img src="https://goreportcard.com/badge/github.com/truthlocks/sdk-go" alt="Go Report Card" /></a>
-  <a href="https://github.com/truthlocks/sdk-go/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License" /></a>
-  <a href="https://docs.truthlocks.com/sdk/go"><img src="https://img.shields.io/badge/docs-truthlocks.com-brightgreen.svg?style=flat-square" alt="Documentation" /></a>
-</p>
-
-<p align="center">
-  <a href="https://docs.truthlocks.com/sdk/go">Documentation</a> &bull;
-  <a href="https://docs.truthlocks.com/api-reference">API Reference</a> &bull;
-  <a href="https://github.com/truthlocks/sdk-go/issues">Issues</a>
-</p>
-
----
-
-Idiomatic Go client for the **Truthlocks** cryptographic trust infrastructure. Issue attestations, verify content authenticity, manage issuers and signing keys, and query the audit trail with a clean, context-aware API.
-
-## Installation
-
-```bash
+```sh
 go get github.com/truthlocks/sdk-go@latest
 ```
 
-Requires **Go 1.22** or later.
+## Verify an existing record
 
-## Quick Start
+Set `TRUTHLOCKS_API_KEY` to a workspace API key and `TRUTHLOCKS_ATTESTATION_ID`
+to an existing record ID in the same environment. Never put credentials in source control.
 
 ```go
 package main
 
 import (
     "context"
-    "encoding/base64"
     "fmt"
     "log"
+    "os"
+    "time"
 
     truthlock "github.com/truthlocks/sdk-go"
 )
 
 func main() {
     client := truthlock.NewClient(truthlock.Config{
-        BaseURL:  "https://api.truthlocks.com",
-        TenantID: "your-tenant-id",
+        APIKey: os.Getenv("TRUTHLOCKS_API_KEY"),
     })
-
-    ctx := context.Background()
-
-    // Create an issuer
-    issuer, err := client.Issuers.Create(ctx, &truthlock.CreateIssuerRequest{
-        Name:        "My Organization",
-        LegalName:   "My Organization Inc.",
-        DisplayName: "My Org",
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+    result, err := client.Verify.VerifyOnline(ctx, &truthlock.VerifyRequest{
+        AttestationID: os.Getenv("TRUTHLOCKS_ATTESTATION_ID"),
     })
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // Trust the issuer
-    if err := client.Issuers.Trust(ctx, issuer.ID); err != nil {
-        log.Fatal(err)
-    }
-
-    // Register a signing key
-    if err := client.Keys.Register(ctx, issuer.ID, &truthlock.RegisterKeyRequest{
-        KID:            "key-1",
-        Alg:            truthlock.AlgEd25519,
-        PublicKeyB64URL: "your-public-key-base64url",
-    }); err != nil {
-        log.Fatal(err)
-    }
-
-    // Mint an attestation
-    payload := base64.RawURLEncoding.EncodeToString([]byte("Hello World"))
-    attestation, err := client.Attestations.Mint(ctx, &truthlock.MintRequest{
-        IssuerID:      issuer.ID,
-        KID:           "key-1",
-        Alg:           truthlock.AlgEd25519,
-        PayloadB64URL: payload,
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Println("Attestation ID:", attestation.AttestationID)
-
-    // Verify
-    result, err := client.Verify.Online(ctx, &truthlock.VerifyRequest{
-        AttestationID: attestation.AttestationID,
-        PayloadB64URL: payload,
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    if result.Verdict == truthlock.VerdictValid {
-        fmt.Println("Document verified successfully")
-    }
+    if err != nil { log.Fatal(err) }
+    fmt.Println(result.Verdict)
 }
 ```
 
-## Features
+A `tl_test_` key selects `https://sandbox-api.truthlocks.com` by default.
+Other keys select `https://api.truthlocks.com`. Set `BaseURL` explicitly to override.
+`TenantID` alone does not authenticate; the server determines the workspace from
+`APIKey` or `BearerToken`. Staff-only issuer governance requires an authorized staff
+bearer identity and is not available to ordinary workspace API keys.
 
-| Feature           | Description                                                         |
-| ----------------- | ------------------------------------------------------------------- |
-| **Attestations**  | Mint, retrieve, list, and revoke cryptographic attestations         |
-| **Verification**  | Online and offline verification with full verdict details           |
-| **Issuers**       | Create, update, trust, and manage issuer identities                 |
-| **Signing Keys**  | Register, rotate, and revoke Ed25519/ECDSA signing keys             |
-| **Receipts**      | Issue, retrieve, and manage structured receipt types                |
-| **Audit Trail**   | Query the tamper-evident audit log for any entity                   |
-| **Context-aware** | All methods accept `context.Context` for cancellation and deadlines |
-| **Error types**   | Structured error types with HTTP status codes and error codes       |
+## Mint with an existing signing key
 
-## API Resources
-
-### Attestations
+Use an active issuer and a key that the console shows as available for signing.
+Registering only a public key does not provide the service with its private key.
 
 ```go
-// Mint
-att, err := client.Attestations.Mint(ctx, &truthlock.MintRequest{...})
-
-// Retrieve
-att, err := client.Attestations.Get(ctx, "att_abc123")
-
-// List
-list, err := client.Attestations.List(ctx, &truthlock.ListParams{Limit: 20})
-
-// Revoke
-err := client.Attestations.Revoke(ctx, "att_abc123", "Key compromised")
-```
-
-### Verification
-
-```go
-// Online (checks revocation, expiry, and signature)
-result, err := client.Verify.Online(ctx, &truthlock.VerifyRequest{...})
-
-// Offline (signature + payload match only)
-result, err := client.Verify.Offline(ctx, &truthlock.VerifyRequest{...})
-```
-
-### Issuers & Keys
-
-```go
-// Create issuer
-issuer, err := client.Issuers.Create(ctx, &truthlock.CreateIssuerRequest{...})
-
-// Register signing key
-err := client.Keys.Register(ctx, issuerID, &truthlock.RegisterKeyRequest{...})
-
-// Revoke key
-err := client.Keys.Revoke(ctx, issuerID, "key-1")
-```
-
-## Error Handling
-
-```go
-result, err := client.Attestations.Get(ctx, "invalid-id")
-if err != nil {
-    var apiErr *truthlock.APIError
-    if errors.As(err, &apiErr) {
-        fmt.Printf("API error %d: %s (code: %s)\n",
-            apiErr.Status, apiErr.Message, apiErr.Code)
-    }
-}
-```
-
-## Configuration
-
-```go
-client := truthlock.NewClient(truthlock.Config{
-    BaseURL:    "https://api.truthlocks.com", // required
-    TenantID:   "tnt_...",                     // tenant auth
-    APIKey:     "tlk_live_...",                // or API key auth
-    Timeout:    30 * time.Second,              // request timeout
-    MaxRetries: 3,                             // retry on transient errors
-    HTTPClient: &http.Client{},               // custom HTTP client
+ctx = truthlock.WithIdempotencyKey(ctx, "unique-key-for-this-one-request")
+record, err := client.Attestations.Mint(ctx, &truthlock.MintRequest{
+    IssuerID: issuerID,
+    KID: signingKeyID,
+    Alg: truthlock.AlgEd25519,
+    PayloadB64URL: base64.RawURLEncoding.EncodeToString(payloadBytes),
 })
 ```
 
-## Documentation
+This excerpt assumes `client`, `ctx`, `issuerID`, `signingKeyID`, and `payloadBytes`
+are defined; import `encoding/base64`. Select the algorithm matching the signing key.
+Retain the idempotency key and identical body when retrying a mint. A new key means
+a new request. The Go client does not automatically retry writes.
 
-- [SDK Guide](https://docs.truthlocks.com/sdk/go)
-- [API Reference](https://docs.truthlocks.com/api-reference)
-- [pkg.go.dev Reference](https://pkg.go.dev/github.com/truthlocks/sdk-go)
-- [Examples](https://github.com/truthlocks/sdk-go/tree/main/examples)
+## Available resources
 
-## License
+- `Issuers.Create`, `Get`, `List`, and `Trust` manage workspace issuers.
+- `Keys.Register` and `List` manage public verification keys.
+- `Attestations.Mint`, `Get`, `Revoke`, and `GetProofBundle` handle records.
+- `Verify.VerifyOnline` returns the server verdict and derives `Valid` from `VALID`.
+- `Audit.QueryEvents` passes query filters to the audit API.
+- `Receipts` provides receipt operations; availability depends on the deployed API,
+  workspace permissions, and storage configuration.
 
-MIT -- see [LICENSE](https://github.com/truthlocks/sdk-go/blob/main/LICENSE) for details.
+A downloaded proof bundle is evidence, not an offline verification result. Use the
+Truthlocks CLI with independently trusted issuer and log keys for offline checks.
+The compatibility `pkg.Client.Verify` also performs online verification; it does not
+return true without checking a server verdict.
+
+## Errors and deadlines
+
+Methods accept `context.Context`. The default HTTP timeout is 30 seconds; set
+`HTTPClient` to customize it. Redirects are rejected to keep credentials on the
+configured origin. Errors from non-successful HTTP responses use `*truthlock.TruthlockError`
+with `Status`, `Code`, and `Message`; use `errors.As` to inspect them.
+
+[API documentation](https://docs.truthlocks.com) · [Issues](https://github.com/truthlocks/sdk-go/issues)

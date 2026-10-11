@@ -2,14 +2,68 @@ package truthlock
 
 import "time"
 
-// Algorithm represents cryptographic algorithm identifiers.
+// Algorithm represents cryptographic signing algorithm identifiers (JOSE standard names).
 type Algorithm string
 
 const (
-	AlgEd25519 Algorithm = "Ed25519"
-	AlgP256    Algorithm = "P-256"
-	AlgP384    Algorithm = "P-384"
+	// ECDSA algorithms
+	AlgES256 Algorithm = "ES256" // ECDSA P-256 + SHA-256
+	AlgES384 Algorithm = "ES384" // ECDSA P-384 + SHA-384
+	AlgES512 Algorithm = "ES512" // ECDSA P-521 + SHA-512
+
+	// RSA PKCS#1 v1.5 algorithms
+	AlgRS256 Algorithm = "RS256" // RSASSA-PKCS1-v1_5 + SHA-256
+	AlgRS384 Algorithm = "RS384" // RSASSA-PKCS1-v1_5 + SHA-384
+	AlgRS512 Algorithm = "RS512" // RSASSA-PKCS1-v1_5 + SHA-512
+
+	// RSA-PSS algorithms
+	AlgPS256 Algorithm = "PS256" // RSASSA-PSS + SHA-256
+	AlgPS384 Algorithm = "PS384" // RSASSA-PSS + SHA-384
+	AlgPS512 Algorithm = "PS512" // RSASSA-PSS + SHA-512
+
+	// EdDSA algorithm
+	AlgEd25519 Algorithm = "Ed25519" // EdDSA with Ed25519 curve
+
+	// Deprecated: use AlgES256 instead. Kept for backward compatibility.
+	AlgP256 Algorithm = "ES256"
+	// Deprecated: use AlgES384 instead. Kept for backward compatibility.
+	AlgP384 Algorithm = "ES384"
 )
+
+// supportedAlgorithms is the authoritative set of all supported signing algorithms.
+var supportedAlgorithms = map[Algorithm]bool{
+	AlgES256:   true,
+	AlgES384:   true,
+	AlgES512:   true,
+	AlgRS256:   true,
+	AlgRS384:   true,
+	AlgRS512:   true,
+	AlgPS256:   true,
+	AlgPS384:   true,
+	AlgPS512:   true,
+	AlgEd25519: true,
+}
+
+// SupportedAlgorithms returns a slice of all supported signing algorithm identifiers.
+func SupportedAlgorithms() []Algorithm {
+	return []Algorithm{
+		AlgES256,
+		AlgES384,
+		AlgES512,
+		AlgRS256,
+		AlgRS384,
+		AlgRS512,
+		AlgPS256,
+		AlgPS384,
+		AlgPS512,
+		AlgEd25519,
+	}
+}
+
+// IsValid returns true if the algorithm is one of the supported signing algorithms.
+func (a Algorithm) IsValid() bool {
+	return supportedAlgorithms[a]
+}
 
 // IssuerStatus represents issuer status in the trust registry.
 type IssuerStatus string
@@ -104,6 +158,8 @@ type CreateIssuerRequest struct {
 
 // IssuerKey represents a signing key in the trust registry.
 type IssuerKey struct {
+	PublicKey    string     `json:"public_key,omitempty"`
+	CanSign      bool       `json:"can_sign"`
 	KID          string     `json:"kid"`
 	IssuerID     string     `json:"issuer_id"`
 	Alg          Algorithm  `json:"alg"`
@@ -125,6 +181,21 @@ type RegisterKeyRequest struct {
 
 // Attestation represents an attestation.
 type Attestation struct {
+	PayloadHashB64URL string `json:"payload_hash_b64url,omitempty"`
+	SignatureB64URL   string `json:"signature_b64url,omitempty"`
+	DocumentHashHex   string `json:"document_hash_hex,omitempty"`
+	IssuedAtUnix      int64  `json:"issued_at_unix"`
+	Signature         struct {
+		Alg   string `json:"alg"`
+		KID   string `json:"kid"`
+		Value string `json:"value"`
+	} `json:"signature"`
+	Log struct {
+		LogID     string `json:"log_id"`
+		LeafIndex int64  `json:"leaf_index"`
+		LeafHash  string `json:"leaf_hash"`
+		ProofURL  string `json:"proof_url"`
+	} `json:"log"`
 	AttestationID    string            `json:"attestation_id"`
 	TenantID         string            `json:"tenant_id"`
 	IssuerID         string            `json:"issuer_id"`
@@ -142,10 +213,17 @@ type Attestation struct {
 
 // MintRequest is the request to mint a new attestation.
 type MintRequest struct {
-	IssuerID      string    `json:"issuer_id"`
-	KID           string    `json:"kid"`
-	Alg           Algorithm `json:"alg"`
-	PayloadB64URL string    `json:"payload_b64url"`
+	Schema         string                 `json:"schema,omitempty"`
+	Claims         map[string]interface{} `json:"claims,omitempty"`
+	ContentType    string                 `json:"content_type,omitempty"`
+	DocumentHash   string                 `json:"document_hash,omitempty"`
+	RecipientEmail string                 `json:"recipient_email,omitempty"`
+	AttestationID  string                 `json:"attestation_id,omitempty"`
+	PackID         string                 `json:"pack_id,omitempty"`
+	IssuerID       string                 `json:"issuer_id"`
+	KID            string                 `json:"kid"`
+	Alg            Algorithm              `json:"alg"`
+	PayloadB64URL  string                 `json:"payload_b64url,omitempty"`
 }
 
 // RevokeRequest is the request to revoke an attestation.
@@ -155,8 +233,9 @@ type RevokeRequest struct {
 
 // VerifyRequest is the request to verify an attestation.
 type VerifyRequest struct {
-	AttestationID string `json:"attestation_id"`
-	PayloadB64URL string `json:"payload_b64url"`
+	DocumentHashHex string `json:"document_hash_hex,omitempty"`
+	AttestationID   string `json:"attestation_id"`
+	PayloadB64URL   string `json:"payload_b64url,omitempty"`
 }
 
 // VerifyResponse is the response from verification.
@@ -193,20 +272,33 @@ type ProofBundle struct {
 
 // TransparencyLog contains transparency log proof data.
 type TransparencyLog struct {
-	LogID          string     `json:"log_id"`
-	LeafIndex      int64      `json:"leaf_index"`
-	LeafHash       string     `json:"leaf_hash"`
-	InclusionProof []string   `json:"inclusion_proof"`
-	Checkpoint     Checkpoint `json:"checkpoint"`
+	LogID          string         `json:"log_id"`
+	LeafIndex      int64          `json:"leaf_index"`
+	LeafHash       string         `json:"leaf_hash"`
+	InclusionProof InclusionProof `json:"inclusion_proof"`
+	Checkpoint     Checkpoint     `json:"checkpoint"`
+}
+
+type InclusionProof struct {
+	LeafIndex       int64    `json:"leaf_index"`
+	LeafHashB64URL  string   `json:"leaf_hash_b64url"`
+	AuditPathB64URL []string `json:"audit_path_b64url"`
+	HashAlg         string   `json:"hash_alg"`
 }
 
 // Checkpoint contains signed tree head data.
 type Checkpoint struct {
-	TreeSize  int64     `json:"tree_size"`
-	RootHash  string    `json:"root_hash"`
-	Timestamp time.Time `json:"timestamp"`
-	Signature string    `json:"signature"`
-	SigKID    string    `json:"sig_kid"`
+	RootHashB64URL         string    `json:"root_hash_b64url"`
+	IssuedAt               time.Time `json:"issued_at"`
+	SignatureB64URL        string    `json:"signature_b64url"`
+	SignerKID              string    `json:"signer_kid"`
+	SigningPublicKeyB64URL string    `json:"signing_pubkey_b64url"`
+	SignatureAlg           string    `json:"signature_alg"`
+	TreeSize               int64     `json:"tree_size"`
+	RootHash               string    `json:"root_hash"`
+	Timestamp              time.Time `json:"timestamp"`
+	Signature              string    `json:"signature"`
+	SigKID                 string    `json:"sig_kid"`
 }
 
 // BundleAudit contains bundle audit metadata.
