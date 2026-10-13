@@ -119,6 +119,12 @@ type Verdict string
 
 const (
 	VerdictValid            Verdict = "VALID"
+	VerdictIncomplete       Verdict = "INCOMPLETE"
+	VerdictInvalid          Verdict = "INVALID"
+	VerdictSuperseded       Verdict = "SUPERSEDED"
+	VerdictExpired          Verdict = "EXPIRED"
+	VerdictUnknownIssuer    Verdict = "UNKNOWN_ISSUER"
+	VerdictNotFound         Verdict = "NOT_FOUND"
 	VerdictAltered          Verdict = "ALTERED"
 	VerdictRevoked          Verdict = "REVOKED"
 	VerdictKeyExpired       Verdict = "KEY_EXPIRED"
@@ -181,6 +187,7 @@ type RegisterKeyRequest struct {
 
 // Attestation represents an attestation.
 type Attestation struct {
+	ExpiresAtUnix     *int64 `json:"expires_at_unix"`
 	PayloadHashB64URL string `json:"payload_hash_b64url,omitempty"`
 	SignatureB64URL   string `json:"signature_b64url,omitempty"`
 	DocumentHashHex   string `json:"document_hash_hex,omitempty"`
@@ -213,6 +220,7 @@ type Attestation struct {
 
 // MintRequest is the request to mint a new attestation.
 type MintRequest struct {
+	ExpiresAtUnix  *int64                 `json:"expires_at_unix,omitempty"`
 	Schema         string                 `json:"schema,omitempty"`
 	Claims         map[string]interface{} `json:"claims,omitempty"`
 	ContentType    string                 `json:"content_type,omitempty"`
@@ -240,13 +248,28 @@ type VerifyRequest struct {
 
 // VerifyResponse is the response from verification.
 type VerifyResponse struct {
-	Valid       bool         `json:"valid"`
-	Verdict     Verdict      `json:"verdict"`
-	Attestation *Attestation `json:"attestation,omitempty"`
-	Issuer      *Issuer      `json:"issuer,omitempty"`
-	Key         *IssuerKey   `json:"key,omitempty"`
-	Governance  Governance   `json:"governance"`
-	Errors      []string     `json:"errors,omitempty"`
+	Log               *VerificationLog `json:"log,omitempty"`
+	SignatureVerified bool             `json:"signature_verified"`
+	IssuedAtUnix      int64            `json:"issued_at_unix,omitempty"`
+	ExpiresAtUnix     *int64           `json:"expires_at_unix"`
+	AttestationID     string           `json:"attestation_id,omitempty"`
+	IssuerID          string           `json:"issuer_id,omitempty"`
+	Reasons           []string         `json:"reasons,omitempty"`
+	Valid             bool             `json:"valid"`
+	Verdict           Verdict          `json:"verdict"`
+	Attestation       *Attestation     `json:"attestation,omitempty"`
+	Issuer            *Issuer          `json:"issuer,omitempty"`
+	Key               *IssuerKey       `json:"key,omitempty"`
+	Governance        Governance       `json:"governance"`
+	Errors            []string         `json:"errors,omitempty"`
+}
+
+// VerificationLog describes only the proof evidence actually returned by the server.
+type VerificationLog struct {
+	LogID        string `json:"log_id"`
+	LeafIndex    *int64 `json:"leaf_index"`
+	LeafHash     string `json:"leaf_hash,omitempty"`
+	ProofChecked bool   `json:"proof_checked"`
 }
 
 // Governance contains governance disclosure information.

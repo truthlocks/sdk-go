@@ -46,6 +46,22 @@ Other keys select `https://api.truthlocks.com`. Set `BaseURL` explicitly to over
 `APIKey` or `BearerToken`. Staff-only issuer governance requires an authorized staff
 bearer identity and is not available to ordinary workspace API keys.
 
+## Verify the original signature
+
+An ID-only lookup returns `VerdictIncomplete` and `Valid == false` when no original signed bytes were supplied. It must not be treated as a verified signature. To perform that check, supply the exact payload bytes:
+
+```go
+// This excerpt continues the client/context setup above; import encoding/base64.
+checked, err := client.Verify.VerifyOnline(ctx, &truthlock.VerifyRequest{
+    AttestationID: os.Getenv("TRUTHLOCKS_ATTESTATION_ID"),
+    PayloadB64URL: base64.RawURLEncoding.EncodeToString(payloadBytes),
+})
+if err != nil { log.Fatal(err) }
+fmt.Println(checked.Verdict, checked.SignatureVerified, checked.Reasons)
+```
+
+`payloadBytes` must contain the original signed payload, which may be an envelope rather than an uploaded document. A matching file fingerprint alone does not check its signature. `ExpiresAtUnix == nil` means no signed expiry is recorded; historical records are not assigned a new expiry. A valid signature does not prove the truth of every claim.
+
 ## Mint with an existing signing key
 
 Use an active issuer and a key that the console shows as available for signing.
