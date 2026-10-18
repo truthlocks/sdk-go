@@ -2,6 +2,12 @@
 
 Authenticated Go client for the Truthlocks API. Requires Go 1.22 or later.
 
+## Try receipt verification without an account
+
+[Run the public MAIP receipt walkthrough](https://github.com/truthlocks/maip/tree/c7cbb95/examples/developer-validation) to verify a synthetic agent-action signature and see tampering rejected. This optional example uses Node.js 18+; it is separate from this SDK and the attestation API below. No account, API key or npm installation is required for the offline example.
+
+[Report a sanitized trial result or integration problem](https://github.com/truthlocks/maip/issues/1). For hosted work, use your own sandbox workspace and its credentials. An offline PASS is not a hosted activation, an independent audit, or a transparency-inclusion result.
+
 ## Install
 
 ```sh
